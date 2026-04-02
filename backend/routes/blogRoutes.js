@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
 const { readData, writeData } = require('../utils/fileHandler');
 
 const FILE = './data/blogs.json';
-
 // GET: Fetch all blogs
 router.get('/', (req, res) => {
     try {
@@ -15,31 +16,33 @@ router.get('/', (req, res) => {
 });
 
 // POST: Save all fields
-router.post('/', (req, res) => {
-    const { title, email, description } = req.body;
-
-    // Validation: Require at least Title and Description
-    if (!title || !description) {
-        return res.status(400).json({ message: "Title and Description are required" });
+// Configure where to store uploaded images
+const storage = multer.diskStorage({
+    destination: './public/uploads/',
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname));
     }
+});
 
+const upload = multer({ storage });
+
+// POST: Handle Text + Image
+router.post('/', upload.single('image'), (req, res) => {
+    const { title, email, description } = req.body;
     const blogs = readData(FILE) || [];
 
     const newBlog = {
         id: Date.now(),
-        title: title,
-        email: email || "N/A", // Save email or "N/A" if empty
-        description: description
+        title,
+        email,
+        description,
+        // Save the URL path to the image
+        imageUrl: req.file ? `http://localhost:8000/uploads/${req.file.filename}` : null
     };
 
     blogs.push(newBlog);
-
-    try {
-        writeData(FILE, blogs);
-        res.status(201).json(newBlog);
-    } catch (error) {
-        res.status(500).json({ message: "Error saving to file" });
-    }
+    writeData(FILE, blogs);
+    res.status(201).json(newBlog);
 });
 
 // DELETE: Remove a blog by ID
