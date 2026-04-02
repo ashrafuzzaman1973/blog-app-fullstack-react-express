@@ -4,6 +4,20 @@ const multer = require('multer');
 const path = require('path');
 const { readData, writeData } = require('../utils/fileHandler');
 
+
+const authMiddleware = (req, res, next) => {
+    const token = req.headers['authorization'];
+    if (!token) return res.status(403).json({ message: "No token provided" });
+
+    try {
+        const decoded = jwt.verify(token.split(" ")[1], "your_super_secret_key");
+        req.user = decoded; // Adds user info to the request
+        next();
+    } catch (err) {
+        res.status(401).json({ message: "Unauthorized" });
+    }
+};
+
 const FILE = './data/blogs.json';
 // GET: Fetch all blogs
 router.get('/', (req, res) => {
