@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const { readData, writeData } = require('../utils/fileHandler');
 
 const USER_FILE = './data/users.json';
-const SECRET_KEY = "your_super_secret_key"; // In production, use env variables
+const SECRET_KEY = "abcdefg"; // In production, use env variables
 
 // SIGN UP
 router.post('/signup', async (req, res) => {
@@ -36,6 +36,20 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user.id, email: user.email }, SECRET_KEY, { expiresIn: '1h' });
     res.json({ token, email: user.email });
+});
+
+// Add this to auth.js to verify the token on page load
+router.get('/me', (req, res) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(401).json({ message: "Not logged in" });
+
+    const token = authHeader.split(" ")[1];
+    try {
+        const decoded = jwt.verify(token, SECRET_KEY);
+        res.json({ email: decoded.email, valid: true });
+    } catch (err) {
+        res.status(401).json({ message: "Invalid session" });
+    }
 });
 
 module.exports = router;

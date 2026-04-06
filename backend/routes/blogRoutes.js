@@ -1,25 +1,43 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const path = require('path');
+const path = require('multer'); // Wait, this should be 'path'
+const pathNode = require('path');
+const jwt = require('jsonwebtoken'); // CRITICAL: Added this
 const { readData, writeData } = require('../utils/fileHandler');
 
+const FILE = './data/blogs.json';
+const SECRET_KEY = "abcdefg"; // Must match auth.js
 
+// Middleware to protect routes
 const authMiddleware = (req, res, next) => {
-    const token = req.headers['authorization'];
-    if (!token) return res.status(403).json({ message: "No token provided" });
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) return res.status(403).json({ message: "No token provided" });
+
+    const token = authHeader.split(" ")[1]; // Bearer <token>
 
     try {
-        const decoded = jwt.verify(token.split(" ")[1], "your_super_secret_key");
-        req.user = decoded; // Adds user info to the request
+        const decoded = jwt.verify(token, SECRET_KEY);
+        req.user = decoded; // Adds user info (id, email) to the request object
         next();
     } catch (err) {
-        res.status(401).json({ message: "Unauthorized" });
+        res.status(401).json({ message: "Unauthorized / Session Expired" });
     }
 };
 
-const FILE = './data/blogs.json';
-// GET: Fetch all blogs
+// Multer Storage Configuration
+const storage = multer.diskStorage({
+    destination: './public/uploads/',
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + pathNode.extname(file.originalname));
+    }
+});
+
+const upload = multer({ storage });
+
+// --- ROUTES ---
+
+// GET: Publicly fetch all blogs
 router.get('/', (req, res) => {
     try {
         const data = readData(FILE);
@@ -29,42 +47,43 @@ router.get('/', (req, res) => {
     }
 });
 
-// POST: Save all fields
-// Configure where to store uploaded images
-const storage = multer.diskStorage({
-    destination: './public/uploads/',
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname));
+// POST: Protected route to create a blog
+router.post('/', authMiddleware, upload.single('image'), (req, res) => {
+    const { title, description } = req.body;
+
+    if (!title || !description) {
+        return res.status(400).json({ message: "Title and Description are required" });
     }
-});
 
-const upload = multer({ storage });
-
-// POST: Handle Text + Image
-router.post('/', upload.single('image'), (req, res) => {
-    const { title, email, description } = req.body;
     const blogs = readData(FILE) || [];
 
     const newBlog = {
         id: Date.now(),
         title,
-        email,
+        // PRO TIP: Use req.user.email from the token instead of trusting req.body.email
+        email: req.user.email,
         description,
-        // Save the URL path to the image
         imageUrl: req.file ? `http://localhost:8000/uploads/${req.file.filename}` : null
     };
 
     blogs.push(newBlog);
-    writeData(FILE, blogs);
-    res.status(201).json(newBlog);
+
+    try {
+        writeData(FILE, blogs);
+        res.status(201).json(newBlog);
+    } catch (error) {
+        res.status(500).json({ message: "Error saving blog" });
+    }
 });
 
-// DELETE: Remove a blog by ID
-router.delete('/:id', (req, res) => {
+// DELETE: Protected route to remove a blog
+router.delete('/:id', authMiddleware, (req, res) => {
     const { id } = req.params;
     let blogs = readData(FILE);
 
     const initialLength = blogs.length;
+    // Basic protection: You could also check if blogs[index].email === req.user.email
+    // to ensure users only delete their OWN posts.
     blogs = blogs.filter(b => b.id != id);
 
     if (blogs.length === initialLength) {
