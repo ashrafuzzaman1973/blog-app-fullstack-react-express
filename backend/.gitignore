@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+dist/
+build/
+
+# Environment Variables (SENSITIVE DATA)
+.env
+
+# Database/Log files
+*.log
+npm-debug.log*
+
+# OS related files
+.DS_Store
+Thumbs.db
+
+# Local storage files (optional: if you want to keep your uploads folder empty on Git)
+public/uploads/*
+!public/uploads/.gitkeep
