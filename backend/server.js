@@ -9,6 +9,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const blogRoutes = require('./routes/blogRoutes');
 const Message = require('./models/Message');
+const aiRoutes = require('./routes/aiRoutes'); // 1. Import the new route
 
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +37,7 @@ mongoose.connect(process.env.MONGO_URI)
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/blogs', blogRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Socket Logic
 io.on("connection", (socket) => {
