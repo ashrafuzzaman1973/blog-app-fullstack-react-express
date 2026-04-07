@@ -7,6 +7,8 @@ build/
 # Environment Variables (SENSITIVE DATA)
 .env
 
+package-lock.json
+
 # Database/Log files
 *.log
 npm-debug.log*
