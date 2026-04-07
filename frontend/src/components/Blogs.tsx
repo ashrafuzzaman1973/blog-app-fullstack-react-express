@@ -1,7 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { io } from "socket.io-client";
 import axios from "axios";
+import { io } from "socket.io-client";
+import Chat from "./Chat"; // We will create this file next
 
+// Initialize socket here to pass down to components
 const socket = io("http://localhost:8000");
 
 interface BlogsProps {
@@ -19,106 +21,44 @@ interface Blog {
     imageUrl?: string;
 }
 
-interface ChatMessage {
-    author: string;
-    message: string;
-    time: string;
-    room: string;
-}
-
 const API = "http://localhost:8000/api/blogs";
 const AUTH_API = "http://localhost:8000/api/auth";
 
 export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProps) {
+    // Navigation State
+    const [view, setView] = useState<"feed" | "chat">("feed");
+
+    // Blog State
     const [blogs, setBlogs] = useState<Blog[]>([]);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [image, setImage] = useState<File | null>(null);
-    const [, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [isPosting, setIsPosting] = useState(false);
 
-    // --- Chat State ---
-    const [message, setMessage] = useState("");
-    const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-    const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
-    const [selectedUser, setSelectedUser] = useState<string | null>(null);
-
+    // Auth UI State
     const [authEmail, setAuthEmail] = useState("");
     const [authPassword, setAuthPassword] = useState("");
     const [isLoginMode, setIsLoginMode] = useState(true);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const chatEndRef = useRef<HTMLDivElement>(null);
 
-    // --- Chat Logic ---
-    useEffect(() => {
-        // Tell server we are online as soon as we have an email
-        if (userEmail) {
-            socket.emit("user_online", userEmail);
-        }
-
-        socket.on("user_list", (users: string[]) => {
-            setOnlineUsers(users);
-        });
-
-        socket.on("chat_history", (history: ChatMessage[]) => {
-            setChatHistory(history);
-        });
-
-        socket.on("receive_message", (data: ChatMessage) => {
-            // Only add message to history if it belongs to the current open chat
-            const currentRoom = selectedUser ? [userEmail, selectedUser].sort().join("_") : "";
-            if (data.room === currentRoom) {
-                setChatHistory((prev) => [...prev, data]);
-            }
-        });
-
-        return () => {
-            socket.off("user_list");
-            socket.off("chat_history");
-            socket.off("receive_message");
-        };
-    }, [userEmail, selectedUser]);
-
-    // Handle switching between users
-    const handleSelectUser = (clickedUser: string) => {
-        if (clickedUser === userEmail) return;
-        setSelectedUser(clickedUser);
-        setChatHistory([]); // Clear view while loading
-        socket.emit("join_private_room", { senderEmail: userEmail, receiverEmail: clickedUser });
-    };
-
-    useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chatHistory]);
-
-    const sendMessage = () => {
-        if (message.trim() === "" || !selectedUser) return;
-
-        const roomID = [userEmail, selectedUser].sort().join("_");
-        const messageData = {
-            room: roomID,
-            author: userEmail,
-            message: message,
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-
-        socket.emit("send_message", messageData);
-        setChatHistory((prev) => [...prev, messageData]);
-        setMessage("");
-    };
-
-    // --- Blog Logic ---
+    // Fetch Blogs Logic
     const fetchBlogs = useCallback(async () => {
         setLoading(true);
         try {
             const res = await axios.get(API);
             setBlogs(res.data);
-        } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+        } catch (error) {
+            console.error("Fetch failed", error);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    useEffect(() => { fetchBlogs(); }, [fetchBlogs]);
+    useEffect(() => {
+        fetchBlogs();
+    }, [fetchBlogs]);
 
     const handleAuthSubmit = async () => {
         if (isLoginMode) {
@@ -128,12 +68,14 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                 await axios.post(`${AUTH_API}/signup`, { email: authEmail, password: authPassword });
                 alert("Account created! Please log in.");
                 setIsLoginMode(true);
-            } catch (e) { alert("Signup failed."); }
+            } catch (e) {
+                alert("Signup failed.");
+            }
         }
     };
 
     const addBlog = async () => {
-        if (!title.trim() || !description.trim()) return alert("Fill fields");
+        if (!title.trim() || !description.trim()) return alert("Fill in fields");
         setIsPosting(true);
         const formData = new FormData();
         formData.append("title", title);
@@ -142,143 +84,120 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
 
         try {
             await axios.post(API, formData, {
-                headers: { "Authorization": `Bearer ${token}`, "Content-Type": "multipart/form-data" }
+                headers: {
+                    "Content-Type": "multipart/form-data",
+                    "Authorization": `Bearer ${token}`
+                }
             });
             setTitle(""); setDescription(""); setImage(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
             fetchBlogs();
-        } catch (e) { onLogout(); }
-        finally { setIsPosting(false); }
+        } catch (e) {
+            alert("Session expired");
+            onLogout();
+        } finally {
+            setIsPosting(false);
+        }
     };
 
     return (
-        <div className="min-h-screen bg-slate-200 py-10 px-4 flex flex-col items-center font-sans gap-8">
-            {/* BLOG SECTION */}
-            <div className="w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden border border-slate-300">
-                <div className="bg-slate-700 p-3 flex items-center justify-between">
-                    <div className="flex gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    </div>
-                    {token && <button onClick={onLogout} className="text-white text-xs bg-red-500/20 px-3 py-1 rounded hover:bg-red-500/40">Logout</button>}
-                </div>
+        <div className="min-h-screen bg-slate-100 py-6 px-4 flex flex-col items-center font-sans gap-6">
 
-                <div className="p-8">
-                    {!token ? (
-                        <div className="bg-slate-50 p-6 rounded-xl border mb-6 text-center">
-                            <h2 className="text-xl font-bold mb-4">{isLoginMode ? "Login to Post" : "Sign Up"}</h2>
-                            <div className="space-y-3 max-w-xs mx-auto">
-                                <input className="w-full p-2 border rounded" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
-                                <input type="password" className="w-full p-2 border rounded" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} />
-                                <button onClick={handleAuthSubmit} className="w-full bg-emerald-700 text-white py-2 rounded font-bold">{isLoginMode ? "Login" : "Register"}</button>
-                                <p className="text-xs cursor-pointer text-slate-500 hover:underline" onClick={() => setIsLoginMode(!isLoginMode)}>{isLoginMode ? "Need an account? Sign up" : "Have an account? Login"}</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="space-y-4 mb-10 bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100">
-                            <input className="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
-                            <textarea className="w-full p-2 border rounded h-20 outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Description" value={description} onChange={e => setDescription(e.target.value)} />
-                            <input type="file" ref={fileInputRef} className="text-xs" onChange={e => setImage(e.target.files?.[0] || null)} />
-                            <button onClick={addBlog} disabled={isPosting} className="w-full bg-emerald-700 text-white py-2 rounded font-bold hover:bg-emerald-800 transition-colors">Post Blog</button>
-                        </div>
-                    )}
-
-                    <div className="space-y-6">
-                        {blogs.map((b) => (
-                            <article key={b._id} className="border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                                {b.imageUrl && <img src={b.imageUrl} className="w-full h-48 object-cover" />}
-                                <div className="p-4">
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h3 className="font-bold text-lg">{b.title}</h3>
-                                        <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500">{b.email}</span>
-                                    </div>
-                                    <p className="text-slate-600 text-sm">{b.description}</p>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* --- PRIVATE CHAT SECTION --- */}
-            <div className="w-full max-w-4xl flex h-[500px] bg-white rounded-xl shadow-2xl border border-slate-300 overflow-hidden">
-
-                {/* SIDEBAR: Online Users */}
-                <div className="w-1/4 bg-slate-800 text-white p-4 hidden md:flex flex-col">
-                    <h3 className="text-xs font-bold text-emerald-400 uppercase mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Active Users
-                    </h3>
-                    <div className="flex-1 overflow-y-auto space-y-2">
-                        {onlineUsers.map((user, i) => (
-                            <div
-                                key={i}
-                                onClick={() => handleSelectUser(user)}
-                                className={`text-[11px] p-2 rounded truncate border cursor-pointer transition-all ${
-                                    user === userEmail ? "border-slate-700 opacity-50 cursor-default" :
-                                        selectedUser === user ? "bg-emerald-600 border-emerald-400 font-bold" :
-                                            "bg-slate-700/50 border-slate-600 hover:bg-slate-600"
-                                }`}
-                            >
-                                {user === userEmail ? `${user} (You)` : user}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                {/* CHAT AREA */}
-                <div className="flex-1 flex flex-col bg-slate-50">
-                    <div className="bg-white p-3 border-b font-bold text-slate-700 shadow-sm flex justify-between items-center">
-                        <span>{selectedUser ? `Chat with ${selectedUser}` : "Select a user to chat"}</span>
-                        {selectedUser && (
-                            <button onClick={() => setSelectedUser(null)} className="text-[10px] text-red-500 hover:underline">Close Chat</button>
-                        )}
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {!selectedUser ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center p-6">
-                                <div className="text-3xl mb-2">💬</div>
-                                <p className="text-sm italic">Click on an active user on the left to start a private conversation.</p>
-                            </div>
-                        ) : chatHistory.length === 0 ? (
-                            <p className="text-center text-slate-400 text-xs mt-10">No messages yet. Say hi!</p>
-                        ) : (
-                            chatHistory.map((msg, index) => (
-                                <div key={index} className={`flex flex-col ${msg.author === userEmail ? "items-end" : "items-start"}`}>
-                                    <div className={`max-w-[80%] p-3 rounded-2xl shadow-sm text-sm ${
-                                        msg.author === userEmail
-                                            ? "bg-emerald-600 text-white rounded-tr-none"
-                                            : "bg-white border text-slate-800 rounded-tl-none"
-                                    }`}>
-                                        <p>{msg.message}</p>
-                                        <p className="text-[9px] text-right mt-1 opacity-60">{msg.time}</p>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                        <div ref={chatEndRef} />
-                    </div>
-
-                    <div className="p-4 bg-white border-t flex gap-2">
-                        <input
-                            className="flex-1 border rounded-full px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-sm disabled:bg-slate-50"
-                            placeholder={!token ? "Login to chat" : selectedUser ? "Write a message..." : "Select a user first"}
-                            value={message}
-                            disabled={!token || !selectedUser}
-                            onChange={(e) => setMessage(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                        />
+            {/* --- TOP NAVIGATION BAR --- */}
+            <div className="w-full max-w-4xl bg-white shadow-md rounded-2xl p-2 flex items-center justify-between border border-slate-200">
+                <div className="flex gap-2">
+                    <button
+                        onClick={() => setView("feed")}
+                        className={`px-6 py-2 rounded-xl font-bold transition-all ${view === "feed" ? "bg-emerald-700 text-white shadow-lg" : "text-slate-600 hover:bg-slate-100"}`}
+                    >
+                        🏠 Home Feed
+                    </button>
+                    {/* 🛡️ ONLY SHOW MESSAGES IF LOGGED IN */}
+                    {token && (
                         <button
-                            onClick={sendMessage}
-                            disabled={!token || !message.trim() || !selectedUser}
-                            className="bg-emerald-700 text-white px-6 py-2 rounded-full font-bold hover:bg-emerald-800 disabled:bg-slate-300 transition-all"
+                            onClick={() => setView("chat")}
+                            className={`px-6 py-2 rounded-xl font-bold transition-all ${view === "chat" ? "bg-emerald-700 text-white shadow-lg" : "text-slate-600 hover:bg-slate-100"}`}
                         >
-                            Send
+                            💬 Messages
+                        </button>
+                    )}
+                </div>
+
+                {token ? (
+                    <div className="flex items-center gap-4 pr-4">
+            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full hidden sm:block">
+                {userEmail}
+            </span>
+                        <button onClick={onLogout} className="text-red-500 font-bold text-sm hover:underline">
+                            Logout
                         </button>
                     </div>
-                </div>
+                ) : (
+                    <div className="pr-4 italic text-slate-400 text-xs">
+                        Login to access all features
+                    </div>
+                )}
+            </div>
+
+            {/* --- MAIN CONTENT AREA --- */}
+            <div className="w-full max-w-4xl">
+                {view === "feed" ? (
+                    <div className="space-y-6">
+                        {/* Auth / Post Form */}
+                        {!token ? (
+                            <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 text-center max-w-md mx-auto">
+                                <h2 className="text-2xl font-bold mb-4">{isLoginMode ? "Welcome Back" : "Create Account"}</h2>
+                                <div className="space-y-3">
+                                    <input className="w-full p-3 border rounded-xl outline-none" placeholder="Email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} />
+                                    <input type="password" className="w-full p-3 border rounded-xl outline-none" placeholder="Password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} />
+                                    <button onClick={handleAuthSubmit} className="w-full bg-emerald-700 text-white font-bold py-3 rounded-xl hover:bg-emerald-800 transition-all">
+                                        {isLoginMode ? "Login" : "Register"}
+                                    </button>
+                                    <p className="text-sm text-slate-500 cursor-pointer" onClick={() => setIsLoginMode(!isLoginMode)}>
+                                        {isLoginMode ? "New here? Sign up" : "Already have an account? Login"}
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="bg-white p-6 rounded-2xl shadow-lg border border-emerald-100 space-y-4">
+                                <h2 className="font-bold text-slate-700">Create a New Post</h2>
+                                <input className="w-full p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Post Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                                <textarea className="w-full p-3 border rounded-xl outline-none h-24 resize-none focus:ring-2 focus:ring-emerald-500" placeholder="What's on your mind?" value={description} onChange={(e) => setDescription(e.target.value)} />
+                                <div className="flex items-center justify-between">
+                                    <input type="file" ref={fileInputRef} className="text-xs text-slate-500" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
+                                    <button onClick={addBlog} disabled={isPosting} className="bg-emerald-700 text-white px-8 py-2 rounded-xl font-bold hover:bg-emerald-800 disabled:bg-slate-300">
+                                        {isPosting ? "Posting..." : "Post"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Blog List */}
+                        <div className="grid gap-6">
+                            {loading ? (
+                                <p className="text-center py-10 text-slate-400">Loading your feed...</p>
+                            ) : (
+                                blogs.map((b) => (
+                                    <article key={b._id} className="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden hover:shadow-xl transition-all">
+                                        {b.imageUrl && <img src={b.imageUrl} alt="post" className="w-full h-64 object-cover" />}
+                                        <div className="p-6">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <h3 className="text-xl font-bold text-slate-800">{b.title}</h3>
+                                                <span className="text-[10px] uppercase tracking-widest font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">
+                                                    {b.email.split('@')[0]}
+                                                </span>
+                                            </div>
+                                            <p className="text-slate-600 leading-relaxed text-sm">{b.description}</p>
+                                        </div>
+                                    </article>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    /* --- CHAT VIEW --- */
+                    <Chat token={token} userEmail={userEmail} socket={socket} />
+                )}
             </div>
         </div>
     );
