@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import Chat from "./Chat";
+// @ts-ignore
+import VoiceInput from "./VoiceInput"; // Ensure this path is correct
 
 const socket = io("http://localhost:8000");
 
@@ -22,7 +24,7 @@ interface Blog {
 
 const API = "http://localhost:8000/api/blogs";
 const AUTH_API = "http://localhost:8000/api/auth";
-const AI_API = "http://localhost:8000/api/ai"; // New AI Route
+const AI_API = "http://localhost:8000/api/ai";
 
 export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProps) {
     const [view, setView] = useState<"feed" | "chat">("feed");
@@ -32,7 +34,8 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [image, setImage] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
     const [isPosting, setIsPosting] = useState(false);
-    const [isGenerating, setIsGenerating] = useState(false); // AI Loading state
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [isVoiceProcessing, setIsVoiceProcessing] = useState(false); // Voice AI Loading
 
     const [authEmail, setAuthEmail] = useState("");
     const [authPassword, setAuthPassword] = useState("");
@@ -51,26 +54,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
 
     useEffect(() => { fetchBlogs(); }, [fetchBlogs]);
 
-    // --- AI GENERATION LOGIC ---
-    // const handleAIGenerate = async () => {
-    //     if (!title.trim()) return;
-    //     setIsGenerating(true);
-    //     try {
-    //         const res = await axios.post(`${AI_API}/generate_full_post`,
-    //             { title },
-    //             { headers: { "Authorization": `Bearer ${token}` } }
-    //         );
-    //         // Auto-fill the description from AI response
-    //         setDescription(res.data.description);
-    //         alert("AI has generated a description based on your title!");
-    //     } catch (error) {
-    //         console.error("AI Gen failed", error);
-    //         alert("AI generation failed. Please try again.");
-    //     } finally {
-    //         setIsGenerating(false);
-    //     }
-    // };
-
+    // --- AI FEATURE 1: TITLE TO DESCRIPTION ---
     const handleAIGenerate = async () => {
         if (!title.trim()) return;
         setIsGenerating(true);
@@ -79,14 +63,27 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                 { title },
                 { headers: { "Authorization": `Bearer ${token}` } }
             );
-
-            // res.data will be { description: "AI finds patterns..." }
             setDescription(res.data.description);
-
         } catch (error) {
             console.error("AI Gen failed", error);
         } finally {
             setIsGenerating(false);
+        }
+    };
+
+    // --- AI FEATURE 2: BANGLA VOICE TO ENGLISH BLOG ---
+    const handleVoiceToBlog = async (banglaText: string) => {
+        setIsVoiceProcessing(true);
+        try {
+            const res = await axios.post(`${AI_API}/voice_to_blog`,
+                { rawTranscript: banglaText },
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+            setDescription(res.data.description);
+        } catch (error) {
+            console.error("Voice processing failed", error);
+        } finally {
+            setIsVoiceProcessing(false);
         }
     };
 
@@ -150,7 +147,14 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                             </div>
                         ) : (
                             <div className="bg-white p-6 rounded-2xl shadow-lg border border-emerald-100 space-y-4">
-                                <h2 className="font-bold text-slate-700">Create a New Post</h2>
+                                <div className="flex justify-between items-center">
+                                    <h2 className="font-bold text-slate-700">Create a New Post</h2>
+                                    {/* VOICE TO BLOG BUTTON */}
+                                    <VoiceInput
+                                        onTranscript={handleVoiceToBlog}
+                                        isProcessing={isVoiceProcessing}
+                                    />
+                                </div>
 
                                 {/* TITLE INPUT + AI BUTTON */}
                                 <div className="flex gap-2">
@@ -173,7 +177,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
 
                                 <textarea
                                     className="w-full p-3 border rounded-xl outline-none h-24 resize-none focus:ring-2 focus:ring-emerald-500"
-                                    placeholder="What's on your mind? (Or let AI generate it...)"
+                                    placeholder={isVoiceProcessing ? "AI is translating your voice..." : "What's on your mind? (Or speak in Bangla...)"}
                                     value={description}
                                     onChange={(e) => setDescription(e.target.value)}
                                 />
