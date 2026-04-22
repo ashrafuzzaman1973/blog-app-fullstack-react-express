@@ -53,7 +53,7 @@ router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
             title,
             description,
             email: req.user.email,
-            imageUrl: req.file ? `http://localhost:8000/uploads/${req.file.filename}` : null
+            imageUrl: req.file ? `https://blog-app-fullstack-react-express.onrender.com/uploads/${req.file.filename}` : null
         });
 
         const savedBlog = await newBlog.save();

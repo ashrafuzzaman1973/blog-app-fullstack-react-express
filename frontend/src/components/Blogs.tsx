@@ -5,7 +5,7 @@ import Chat from "./Chat";
 // @ts-ignore
 import VoiceInput from "./VoiceInput";
 
-const socket = io("http://localhost:8000");
+const socket = io("https://blog-app-fullstack-react-express.onrender.com");
 
 interface BlogsProps {
     token: string;
@@ -22,9 +22,9 @@ interface Blog {
     imageUrl?: string;
 }
 
-const API = "http://localhost:8000/api/blogs";
-const AUTH_API = "http://localhost:8000/api/auth";
-const AI_API = "http://localhost:8000/api/ai";
+const API = "https://blog-app-fullstack-react-express.onrender.com/api/blogs";
+const AUTH_API = "https://blog-app-fullstack-react-express.onrender.com/api/auth";
+const AI_API = "https://blog-app-fullstack-react-express.onrender.com/api/ai";
 
 export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProps) {
     // UI State

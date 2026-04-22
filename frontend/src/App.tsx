@@ -10,7 +10,7 @@ function App() {
     // 2. Authentication Logic
     const handleLogin = async (email: any, password: any) => {
         try {
-            const res = await axios.post("http://localhost:8000/api/auth/login", { email, password });
+            const res = await axios.post("https://blog-app-fullstack-react-express.onrender.com/api/auth/login", { email, password });
 
             // Save to storage
             localStorage.setItem("token", res.data.token);
