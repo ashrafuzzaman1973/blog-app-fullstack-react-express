@@ -238,7 +238,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                 {loading ? <p className="text-center py-10 text-gray-400 font-bold">Refreshing feed...</p> : (
                                     blogs.map((b) => (
                                         <article key={b._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                                            {b.imageUrl && <img src={b.imageUrl} alt="post" className="w-full h-64 object-cover" />}
+                                            {b.imageUrl && <img src={`${import.meta.env.VITE_API_URL}${b.imageUrl}`} alt="post" className="w-full h-64 object-cover" />}
                                             <div className="p-6">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h3 className="text-xl font-bold text-gray-800">{b.title}</h3>
