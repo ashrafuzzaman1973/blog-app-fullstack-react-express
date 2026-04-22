@@ -7,10 +7,12 @@ function App() {
     const [token, setToken] = useState(localStorage.getItem("token") || "");
     const [userEmail, setUserEmail] = useState(localStorage.getItem("email") || "");
 
+    const BASE_URL = import.meta.env.VITE_API_URL; // Automatically switches based on environment
+
     // 2. Authentication Logic
     const handleLogin = async (email: any, password: any) => {
         try {
-            const res = await axios.post("https://blog-app-fullstack-react-express.onrender.com/api/auth/login", { email, password });
+            const res = await axios.post(`${BASE_URL}/api/auth/login`, { email, password });
 
             // Save to storage
             localStorage.setItem("token", res.data.token);

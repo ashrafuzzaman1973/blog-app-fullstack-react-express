@@ -5,7 +5,9 @@ import Chat from "./Chat";
 // @ts-ignore
 import VoiceInput from "./VoiceInput";
 
-const socket = io("https://blog-app-fullstack-react-express.onrender.com");
+const BASE_URL = import.meta.env.VITE_API_URL; // Automatically switches based on environment
+
+const socket = io(BASE_URL);
 
 interface BlogsProps {
     token: string;
@@ -22,9 +24,9 @@ interface Blog {
     imageUrl?: string;
 }
 
-const API = "https://blog-app-fullstack-react-express.onrender.com/api/blogs";
-const AUTH_API = "https://blog-app-fullstack-react-express.onrender.com/api/auth";
-const AI_API = "https://blog-app-fullstack-react-express.onrender.com/api/ai";
+const API = `${BASE_URL}/api/blogs`;
+const AUTH_API = `${BASE_URL}/api/auth`;
+const AI_API = `${BASE_URL}/api/ai`;
 
 export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProps) {
     // UI State
