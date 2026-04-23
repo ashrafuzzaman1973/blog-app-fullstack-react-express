@@ -1,6 +1,12 @@
-# 🚀 NexaBlog: AI-Powered Admin Dashboard & Social Platform
+# 🚀 NexaBlog: AI-Powered Hands-Free Admin Dashboard & Social Platform
 
-**NexaBlog** is a high-performance, full-stack blogging ecosystem that combines **Artificial Intelligence**, a modern **Admin Dashboard**, and real-time social interaction. Built using the **MERN Stack**, it delivers a powerful and scalable platform for content creation, communication, and AI-assisted workflows.
+**NexaBlog** is a high-performance, full-stack blogging ecosystem that combines **Artificial Intelligence**, a modern **Admin Dashboard**, **Real-Time Communication**, and **Eye-Tracking Accessibility**.
+
+Built using the **MERN Stack**, it delivers a powerful platform for:
+- AI-assisted content creation
+- Voice-based blog generation
+- Hands-free reading using gaze tracking
+- Real-time social interaction
 
 ---
 
@@ -10,6 +16,7 @@
 
 * **React.js (Vite)** — Fast and modular UI development
 * **Tailwind CSS (Admin Dashboard UI)** — Clean, responsive, professional layout
+* **WebGazer.js** — Eye-tracking and gaze prediction
 * **Socket.io Client** — Real-time communication
 * **Axios** — API handling and AI integration
 
@@ -25,6 +32,15 @@
 ---
 
 ## ✨ Key Features
+
+### 👁️ Eye-Tracking & Hands-Free Reading (New 🚀)
+
+* **Hands-Free Navigation:** Read blogs without using mouse or keyboard
+* **Gaze-Based Highlighting:** Detects which paragraph you're reading
+* **Smart Auto-Scroll:** Looking at the bottom triggers smooth scrolling
+* **Accessibility Focused:** Enhances usability for modern and inclusive UX
+
+---
 
 ### 📊 Admin Dashboard
 
