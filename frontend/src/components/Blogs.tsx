@@ -4,9 +4,10 @@ import { io } from "socket.io-client";
 import Chat from "./Chat";
 // @ts-ignore
 import VoiceInput from "./VoiceInput";
+// @ts-ignore
+//import webgazer from 'webgazer';
 
-const BASE_URL = import.meta.env.VITE_API_URL; // Automatically switches based on environment
-
+const BASE_URL = import.meta.env.VITE_API_URL; // Uses .env.development or .env.production
 const socket = io(BASE_URL);
 
 interface BlogsProps {
@@ -32,6 +33,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     // UI State
     const [view, setView] = useState<"feed" | "chat">("feed");
     const [isSidebarOpen, setSidebarOpen] = useState(true);
+    const [isEyeTracking, setIsEyeTracking] = useState(false); // Manual Toggle
 
     // Data State
     const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -51,6 +53,81 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [isLoginMode, setIsLoginMode] = useState(true);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // --- WEBGAZER EYE TRACKING LOGIC ---
+    // --- WEBGAZER EYE TRACKING LOGIC with AUTO-SCROLL ---
+    const webgazerRunning = useRef(false);
+
+    useEffect(() => {
+        const wg = (window as any).webgazer;
+
+        const stopAndCleanup = () => {
+            if (wg) {
+                try {
+                    wg.end();
+                    webgazerRunning.current = false;
+                    ['webgazerVideoFeed', 'webgazerVideoCanvas', 'webgazerGazeDot', 'webgazerFaceOverlay', 'webgazerFaceFeedbackBox']
+                        .forEach(id => document.getElementById(id)?.remove());
+                } catch (e) {}
+            }
+        };
+
+        const startWebGazer = async () => {
+            if (isEyeTracking && view === "feed" && wg) {
+                if (webgazerRunning.current) return;
+
+                try {
+                    // Fix for the 404 errors you had earlier
+                    wg.params.faceMeshWasmPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/';
+                    await wg.clearData();
+                    webgazerRunning.current = true;
+
+                    await wg.setGazeListener((data: any) => {
+                        if (!data) return;
+
+                        // 1. HIGHLIGHT LOGIC
+                        const target = document.elementFromPoint(data.x, data.y);
+                        if (target?.classList.contains('blog-text')) {
+                            document.querySelectorAll('.blog-text').forEach(el =>
+                                (el as HTMLElement).style.backgroundColor = 'transparent'
+                            );
+                            (target as HTMLElement).style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                        }
+
+                        // 2. AUTO-SCROLL LOGIC
+                        // We define the "Scroll Zone" as the bottom 20% of the screen
+                        const scrollThreshold = window.innerHeight * 0.8;
+
+                        if (data.y > scrollThreshold) {
+                            // Scroll smoothly. Increase '10' for faster scrolling.
+                            window.scrollBy({
+                                top: 15,
+                                behavior: 'smooth'
+                            });
+                        }
+                    }).begin();
+
+                    wg.showVideoPreview(true).showPredictionPoints(true);
+
+                    setTimeout(() => {
+                        const dot = document.getElementById('webgazerGazeDot');
+                        if (dot) dot.style.zIndex = '9999';
+                    }, 2000);
+
+                } catch (err) {
+                    console.error("WebGazer start failed:", err);
+                    webgazerRunning.current = false;
+                    setIsEyeTracking(false);
+                }
+            } else {
+                stopAndCleanup();
+            }
+        };
+
+        startWebGazer();
+        return () => stopAndCleanup();
+
+    }, [isEyeTracking, view]);
 
     const fetchBlogs = useCallback(async () => {
         setLoading(true);
@@ -153,7 +230,6 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
         );
     }
 
-    // --- RENDER ADMIN DASHBOARD VIEW ---
     return (
         <div className="mx-auto bg-gray-100 min-h-screen flex flex-col">
             {/* Header Section */}
@@ -162,18 +238,27 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                     <div className="inline-flex items-center gap-4 text-white">
                         <i className="fas fa-bars cursor-pointer hover:text-emerald-400" onClick={() => setSidebarOpen(!isSidebarOpen)}></i>
                         <h1 className="font-bold text-lg tracking-tight">NexaBlog Admin</h1>
+
+                        {/* Eye Tracking Toggle */}
+                        <button
+                            onClick={() => setIsEyeTracking(!isEyeTracking)}
+                            className={`ml-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all flex items-center gap-2 ${
+                                isEyeTracking ? 'bg-emerald-500 text-white shadow-lg' : 'bg-slate-700 text-gray-400'
+                            }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${isEyeTracking ? 'bg-white animate-ping' : 'bg-gray-500'}`}></span>
+                            {isEyeTracking ? "Eye Tracking ON" : "Reader Tracking OFF"}
+                        </button>
                     </div>
                     <div className="flex items-center gap-4">
                         <span className="text-white hidden md:block text-xs font-semibold">{userEmail}</span>
-                        <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition">
-                            Logout
-                        </button>
+                        <button onClick={onLogout} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-xs font-bold transition">Logout</button>
                     </div>
                 </div>
             </header>
 
             <div className="flex flex-1">
-                {/* Sidebar Navigation */}
+                {/* Sidebar */}
                 <aside className={`${isSidebarOpen ? "w-64" : "w-0"} transition-all duration-300 bg-white border-r border-gray-200 overflow-hidden h-[calc(100vh-52px)] sticky top-[52px]`}>
                     <ul className="list-none flex flex-col p-2 space-y-1">
                         <li onClick={() => setView("feed")}
@@ -187,7 +272,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                     </ul>
                 </aside>
 
-                {/* Main Content Area */}
+                {/* Main Content */}
                 <main className="flex-1 p-6 bg-gray-50 overflow-y-auto">
                     {view === "feed" ? (
                         <div className="space-y-6 max-w-5xl mx-auto">
@@ -198,12 +283,12 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                     <h3 className="text-3xl font-black">{blogs.length}</h3>
                                 </div>
                                 <div className="bg-blue-600 border-l-8 border-blue-900 p-6 rounded shadow text-white">
-                                    <p className="text-xs font-bold uppercase opacity-80">AI Status</p>
-                                    <h3 className="text-2xl font-black">Active</h3>
+                                    <p className="text-xs font-bold uppercase opacity-80">AI Credits</p>
+                                    <h3 className="text-2xl font-black">Unlimited</h3>
                                 </div>
                                 <div className="bg-purple-600 border-l-8 border-purple-900 p-6 rounded shadow text-white">
-                                    <p className="text-xs font-bold uppercase opacity-80">System</p>
-                                    <h3 className="text-2xl font-black">Online</h3>
+                                    <p className="text-xs font-bold uppercase opacity-80">Live Status</p>
+                                    <h3 className="text-2xl font-black">{isEyeTracking ? "Tracking" : "Idle"}</h3>
                                 </div>
                             </div>
 
@@ -238,13 +323,15 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                 {loading ? <p className="text-center py-10 text-gray-400 font-bold">Refreshing feed...</p> : (
                                     blogs.map((b) => (
                                         <article key={b._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                                            {b.imageUrl && <img src={`${import.meta.env.VITE_API_URL}${b.imageUrl}`} alt="post" className="w-full h-64 object-cover" />}
+                                            {b.imageUrl && <img src={`${BASE_URL}${b.imageUrl}`} alt="post" className="w-full h-64 object-cover" />}
                                             <div className="p-6">
                                                 <div className="flex justify-between items-start mb-2">
                                                     <h3 className="text-xl font-bold text-gray-800">{b.title}</h3>
                                                     <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">By {b.email.split('@')[0]}</span>
                                                 </div>
-                                                <p className="text-gray-600 text-sm leading-relaxed">{b.description}</p>
+                                                <p className="blog-text text-gray-600 text-sm leading-relaxed p-2 rounded transition-colors duration-500">
+                                                    {b.description}
+                                                </p>
                                             </div>
                                         </article>
                                     ))
@@ -252,7 +339,6 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                             </div>
                         </div>
                     ) : (
-                        /* --- CHAT SECTION --- */
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-[calc(100vh-140px)] overflow-hidden">
                             <Chat token={token} userEmail={userEmail} socket={socket} />
                         </div>
