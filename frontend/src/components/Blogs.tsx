@@ -4,10 +4,8 @@ import { io } from "socket.io-client";
 import Chat from "./Chat";
 // @ts-ignore
 import VoiceInput from "./VoiceInput";
-// @ts-ignore
-//import webgazer from 'webgazer';
 
-const BASE_URL = import.meta.env.VITE_API_URL; // Uses .env.development or .env.production
+const BASE_URL = import.meta.env.VITE_API_URL;
 const socket = io(BASE_URL);
 
 interface BlogsProps {
@@ -33,7 +31,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     // UI State
     const [view, setView] = useState<"feed" | "chat">("feed");
     const [isSidebarOpen, setSidebarOpen] = useState(true);
-    const [isEyeTracking, setIsEyeTracking] = useState(false); // Manual Toggle
+    const [isEyeTracking, setIsEyeTracking] = useState(false);
 
     // Data State
     const [blogs, setBlogs] = useState<Blog[]>([]);
@@ -46,6 +44,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [isPosting, setIsPosting] = useState(false);
     const [isGenerating, setIsGenerating] = useState(false);
     const [isVoiceProcessing, setIsVoiceProcessing] = useState(false);
+    const [isAssisting, setIsAssisting] = useState(false);
 
     // Auth Form State
     const [authEmail, setAuthEmail] = useState("");
@@ -53,11 +52,9 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [isLoginMode, setIsLoginMode] = useState(true);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-
-    // --- WEBGAZER EYE TRACKING LOGIC ---
-    // --- WEBGAZER EYE TRACKING LOGIC with AUTO-SCROLL ---
     const webgazerRunning = useRef(false);
 
+    // --- WEBGAZER EYE TRACKING & AUTO-SCROLL LOGIC ---
     useEffect(() => {
         const wg = (window as any).webgazer;
 
@@ -77,7 +74,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                 if (webgazerRunning.current) return;
 
                 try {
-                    // Fix for the 404 errors you had earlier
+                    // Force CDN for MediaPipe assets to avoid 404s
                     wg.params.faceMeshWasmPath = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/';
                     await wg.clearData();
                     webgazerRunning.current = true;
@@ -85,7 +82,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                     await wg.setGazeListener((data: any) => {
                         if (!data) return;
 
-                        // 1. HIGHLIGHT LOGIC
+                        // 1. Text Highlighting
                         const target = document.elementFromPoint(data.x, data.y);
                         if (target?.classList.contains('blog-text')) {
                             document.querySelectorAll('.blog-text').forEach(el =>
@@ -94,16 +91,10 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                             (target as HTMLElement).style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
                         }
 
-                        // 2. AUTO-SCROLL LOGIC
-                        // We define the "Scroll Zone" as the bottom 20% of the screen
+                        // 2. Auto-Scroll Logic (Bottom 20% of screen)
                         const scrollThreshold = window.innerHeight * 0.8;
-
                         if (data.y > scrollThreshold) {
-                            // Scroll smoothly. Increase '10' for faster scrolling.
-                            window.scrollBy({
-                                top: 15,
-                                behavior: 'smooth'
-                            });
+                            window.scrollBy({ top: 15, behavior: 'smooth' });
                         }
                     }).begin();
 
@@ -126,8 +117,24 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
 
         startWebGazer();
         return () => stopAndCleanup();
-
     }, [isEyeTracking, view]);
+
+    // --- AI ASSISTANT ACTIONS ---
+    const handleAIAction = async (action: "expand" | "shorten" | "professional") => {
+        if (!description.trim()) return;
+        setIsAssisting(true);
+        try {
+            const res = await axios.post(`${AI_API}/refine_content`,
+                { text: description, action },
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+            setDescription(res.data.refinedText);
+        } catch (error) {
+            console.error("AI Assistant Error:", error);
+        } finally {
+            setIsAssisting(false);
+        }
+    };
 
     const fetchBlogs = useCallback(async () => {
         setLoading(true);
@@ -196,7 +203,6 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
         finally { setIsPosting(false); }
     };
 
-    // --- RENDER LOGIN VIEW ---
     if (!token) {
         return (
             <div className="h-screen font-sans bg-cover bg-center flex items-center justify-center"
@@ -232,14 +238,12 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
 
     return (
         <div className="mx-auto bg-gray-100 min-h-screen flex flex-col">
-            {/* Header Section */}
             <header className="bg-slate-800 p-2 sticky top-0 z-50 shadow-lg">
                 <div className="flex justify-between items-center px-4">
                     <div className="inline-flex items-center gap-4 text-white">
                         <i className="fas fa-bars cursor-pointer hover:text-emerald-400" onClick={() => setSidebarOpen(!isSidebarOpen)}></i>
                         <h1 className="font-bold text-lg tracking-tight">NexaBlog Admin</h1>
 
-                        {/* Eye Tracking Toggle */}
                         <button
                             onClick={() => setIsEyeTracking(!isEyeTracking)}
                             className={`ml-4 px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all flex items-center gap-2 ${
@@ -258,7 +262,6 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
             </header>
 
             <div className="flex flex-1">
-                {/* Sidebar */}
                 <aside className={`${isSidebarOpen ? "w-64" : "w-0"} transition-all duration-300 bg-white border-r border-gray-200 overflow-hidden h-[calc(100vh-52px)] sticky top-[52px]`}>
                     <ul className="list-none flex flex-col p-2 space-y-1">
                         <li onClick={() => setView("feed")}
@@ -272,11 +275,9 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                     </ul>
                 </aside>
 
-                {/* Main Content */}
                 <main className="flex-1 p-6 bg-gray-50 overflow-y-auto">
                     {view === "feed" ? (
                         <div className="space-y-6 max-w-5xl mx-auto">
-                            {/* Stats Row */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                 <div className="bg-emerald-600 border-l-8 border-emerald-900 p-6 rounded shadow text-white">
                                     <p className="text-xs font-bold uppercase opacity-80">Total Blogs</p>
@@ -292,10 +293,17 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                 </div>
                             </div>
 
-                            {/* Create Blog Form */}
                             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
                                 <div className="flex justify-between items-center">
-                                    <h2 className="font-bold text-gray-700">New Publication</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="font-bold text-gray-700">New Publication</h2>
+                                        {description.length > 5 && (
+                                            <div className="flex gap-1 ml-4 animate-in fade-in">
+                                                <button onClick={() => handleAIAction("expand")} disabled={isAssisting} className="text-[9px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold uppercase">✨ Expand</button>
+                                                <button onClick={() => handleAIAction("professional")} disabled={isAssisting} className="text-[9px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold uppercase">👔 Formal</button>
+                                            </div>
+                                        )}
+                                    </div>
                                     <VoiceInput onTranscript={handleVoiceToBlog} isProcessing={isVoiceProcessing} />
                                 </div>
                                 <div className="flex gap-2">
@@ -307,9 +315,16 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                         </button>
                                     )}
                                 </div>
-                                <textarea className="w-full p-3 border rounded-xl outline-none h-24 focus:ring-2 focus:ring-emerald-500"
-                                          placeholder={isVoiceProcessing ? "AI is translating your voice..." : "What's on your mind?"}
-                                          value={description} onChange={(e) => setDescription(e.target.value)} />
+                                <div className="relative">
+                                    <textarea className={`w-full p-3 border rounded-xl outline-none h-32 focus:ring-2 focus:ring-emerald-500 transition-all ${isAssisting ? 'opacity-40 pointer-events-none' : ''}`}
+                                              placeholder={isVoiceProcessing ? "AI is translating your voice..." : "What's on your mind?"}
+                                              value={description} onChange={(e) => setDescription(e.target.value)} />
+                                    {isAssisting && (
+                                        <div className="absolute inset-0 flex items-center justify-center font-bold text-purple-700 text-sm">
+                                            <i className="fas fa-magic animate-bounce mr-2"></i> AI Assistant is working...
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="flex items-center justify-between">
                                     <input type="file" ref={fileInputRef} className="text-sm text-gray-500" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
                                     <button onClick={addBlog} disabled={isPosting} className="bg-emerald-700 text-white px-10 py-2 rounded-xl font-bold hover:bg-emerald-800 disabled:bg-gray-300">
@@ -318,7 +333,6 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                 </div>
                             </div>
 
-                            {/* Blog Feed */}
                             <div className="grid gap-6">
                                 {loading ? <p className="text-center py-10 text-gray-400 font-bold">Refreshing feed...</p> : (
                                     blogs.map((b) => (
