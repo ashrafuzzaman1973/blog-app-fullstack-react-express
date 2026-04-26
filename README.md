@@ -58,6 +58,20 @@ Built using the **MERN Stack**, it delivers a powerful platform for:
 * Generate full blog descriptions from a simple title
 * Powered by **Gemini 1.5 Flash**
 
+### ✍️ AI Co-Writing Assistant
+- **Smart Refinement:** Expand, shorten, or convert tone to professional
+- **Draft Enhancement:** Improves grammar, clarity, and structure
+- **Contextual Writing:** AI interacts with existing content for relevant suggestions
+
+---
+
+### 🏷️ SEO Auto-Tag Generator
+- **Keyword Extraction:** Generates SEO-friendly tags from title/content
+- **Automated Storage:** Tags stored as searchable arrays in MongoDB
+- **SEO Optimization:** Improves discoverability of blog posts
+
+---
+
 ### 💬 Real-Time Messaging
 
 * One-to-one private chat
@@ -171,11 +185,12 @@ npm run dev
 | POST   | `/api/blogs` | Create blog (Auth required) |
 
 ### 🤖 AI Services
-
-| Method | Endpoint                     | Description                 |
-| ------ | ---------------------------- | --------------------------- |
-| POST   | `/api/ai/generate_full_post` | Title → Full blog           |
-| POST   | `/api/ai/voice_to_blog`      | Bangla voice → English blog |
+| Method | Endpoint                     | Description                              |
+| ------ | ---------------------------- | ---------------------------------------- |
+| POST   | `/api/ai/generate_full_post` | Title → Full blog content                |
+| POST   | `/api/ai/voice_to_blog`      | Bangla voice → English blog              |
+| POST   | `/api/ai/refine_content`     | Improve, expand, shorten, or change tone |
+| POST   | `/api/ai/generate_tags`      | Generate SEO tags from content           |
 
 ---
 
