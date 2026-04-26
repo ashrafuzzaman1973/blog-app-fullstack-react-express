@@ -9,7 +9,7 @@ const path = require('path');
 const authRoutes = require('./routes/auth');
 const blogRoutes = require('./routes/blogRoutes');
 const Message = require('./models/Message');
-const aiRoutes = require('./routes/aiRoutes'); // 1. Import the new route
+const aiRoutes = require('./routes/aiRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,6 +25,10 @@ const io = new Server(server, {
         methods: ["GET", "POST"]
     }
 });
+
+// --- 🚀 IMPORTANT: SHARE SOCKET.IO WITH ROUTES ---
+// This allows you to use req.app.get('socketio') in your blogRoutes.js
+app.set('socketio', io);
 
 // Map socket.id to user email
 const activeUsers = new Map();
@@ -48,45 +52,36 @@ app.use('/api/ai', aiRoutes);
 io.on("connection", (socket) => {
     console.log(`User Connected: ${socket.id}`);
 
-    // 1. Handle user joining and updating online list
+    // 1. Handle online status
     socket.on("user_online", (email) => {
         if (email) {
             activeUsers.set(socket.id, email);
             const uniqueEmails = Array.from(new Set(activeUsers.values()));
-            io.emit("user_list", uniqueEmails); // Tell everyone who is online
+            io.emit("user_list", uniqueEmails);
         }
     });
 
-    // 2. Join a Private Room between two specific users
+    // 2. Private Chat Logic
     socket.on("join_private_room", async ({ senderEmail, receiverEmail }) => {
-        // Create a unique room ID by sorting emails alphabetically
-        // This ensures both users join "ashraf_siddik" and not "siddik_ashraf"
         const room = [senderEmail, receiverEmail].sort().join("_");
-
         socket.join(room);
-        console.log(`User ${senderEmail} joined private room: ${room}`);
 
         try {
-            // Fetch history for this specific private conversation
             const history = await Message.find({ room }).sort({ createdAt: 1 }).limit(100);
             socket.emit("chat_history", history);
         } catch (err) {
-            console.error("Error fetching private history:", err);
+            console.error("Error fetching history:", err);
         }
     });
 
-    // 3. Handle sending messages to a specific room
     socket.on("send_message", async (data) => {
         try {
             const { room, author, message, time } = data;
-
             const newMessage = new Message({ room, author, message, time });
             await newMessage.save();
-
-            // Emit specifically to the room (private chat)
             socket.to(room).emit("receive_message", data);
         } catch (err) {
-            console.error("Error saving private message:", err);
+            console.error("Error saving message:", err);
         }
     });
 
@@ -99,4 +94,4 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => console.log(`🚀 Private Chat Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

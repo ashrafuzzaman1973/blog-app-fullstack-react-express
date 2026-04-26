@@ -101,4 +101,24 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     }
 });
 
+router.post('/:id/comment', authMiddleware, async (req, res) => {
+    try {
+        const { text } = req.body;
+        const blog = await Blog.findById(req.params.id);
+
+        const newComment = { email: req.user.email, text, createdAt: new Date() };
+        blog.comments.push(newComment);
+        await blog.save();
+
+        // 🚀 REAL-TIME TRIGGER
+        // This sends the updated blog (with the new comment) to EVERYONE connected
+        const io = req.app.get('socketio');
+        io.emit('blog_updated', blog);
+
+        res.status(201).json(blog);
+    } catch (err) {
+        res.status(500).json({ message: "Error" });
+    }
+});
+
 module.exports = router;

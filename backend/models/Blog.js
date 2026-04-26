@@ -6,6 +6,13 @@ const blogSchema = new mongoose.Schema({
     email: { type: String, required: true },
     imageUrl: { type: String },
     tags: [String], // Array of strings for SEO
+    comments: [
+        {
+            email: String,
+            text: String,
+            createdAt: { type: Date, default: Date.now }
+        }
+    ],
     createdAt: { type: Date, default: Date.now }
 });
 

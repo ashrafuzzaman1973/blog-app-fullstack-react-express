@@ -39,6 +39,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [description, setDescription] = useState("");
     const [image, setImage] = useState<File | null>(null);
     const [tags, setTags]    = useState<string[]>([]);
+    const [commentInputs, setCommentInputs] = useState<{ [key: string]: string }>({});
 
     // Loading States
     const [loading, setLoading] = useState(false);
@@ -120,6 +121,25 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
         return () => stopAndCleanup();
     }, [isEyeTracking, view]);
 
+    useEffect(() => {
+        // Listen for real-time updates from other users
+        socket.on("blog_updated", (updatedBlog: Blog) => {
+            setBlogs((prevBlogs) =>
+                prevBlogs.map((b) => (b._id === updatedBlog._id ? updatedBlog : b))
+            );
+        });
+
+        // Also listen for brand new blog posts
+        socket.on("new_blog_added", (newBlog: Blog) => {
+            setBlogs((prevBlogs) => [newBlog, ...prevBlogs]);
+        });
+
+        return () => {
+            socket.off("blog_updated");
+            socket.off("new_blog_added");
+        };
+    }, []);
+
     // --- AI ASSISTANT ACTIONS ---
     const handleAIAction = async (action: "expand" | "shorten" | "professional") => {
         if (!description.trim()) return;
@@ -195,6 +215,23 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
             setTags(res.data.tags);
         } catch (error) {
             console.error("Tag Generation Error:", error);
+        }
+    };
+
+    const handleAddComment = async (blogId: string) => {
+        const text = commentInputs[blogId];
+        if (!text?.trim()) return;
+
+        try {
+            await axios.post(`${API}/${blogId}/comment`,
+                { text },
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+            // Clear only this blog's input
+            setCommentInputs(prev => ({ ...prev, [blogId]: "" }));
+            fetchBlogs(); // Refresh feed to show new comment
+        } catch (error) {
+            console.error("Comment Error:", error);
         }
     };
 
@@ -295,7 +332,8 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                     {view === "feed" ? (
                         <div className="space-y-6 max-w-5xl mx-auto">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-emerald-600 border-l-8 border-emerald-900 p-6 rounded shadow text-white">
+                                <div
+                                    className="bg-emerald-600 border-l-8 border-emerald-900 p-6 rounded shadow text-white">
                                     <p className="text-xs font-bold uppercase opacity-80">Total Blogs</p>
                                     <h3 className="text-3xl font-black">{blogs.length}</h3>
                                 </div>
@@ -303,7 +341,8 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                     <p className="text-xs font-bold uppercase opacity-80">AI Credits</p>
                                     <h3 className="text-2xl font-black">Unlimited</h3>
                                 </div>
-                                <div className="bg-purple-600 border-l-8 border-purple-900 p-6 rounded shadow text-white">
+                                <div
+                                    className="bg-purple-600 border-l-8 border-purple-900 p-6 rounded shadow text-white">
                                     <p className="text-xs font-bold uppercase opacity-80">Live Status</p>
                                     <h3 className="text-2xl font-black">{isEyeTracking ? "Tracking" : "Idle"}</h3>
                                 </div>
@@ -315,40 +354,54 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                         <h2 className="font-bold text-gray-700">New Publication</h2>
                                         {description.length > 5 && (
                                             <div className="flex gap-1 ml-4 animate-in fade-in">
-                                                <button onClick={() => handleAIAction("expand")} disabled={isAssisting} className="text-[9px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold uppercase">✨ Expand</button>
-                                                <button onClick={() => handleAIAction("professional")} disabled={isAssisting} className="text-[9px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold uppercase">👔 Formal</button>
+                                                <button onClick={() => handleAIAction("expand")} disabled={isAssisting}
+                                                        className="text-[9px] bg-purple-100 text-purple-700 px-2 py-1 rounded font-bold uppercase">✨
+                                                    Expand
+                                                </button>
+                                                <button onClick={() => handleAIAction("professional")}
+                                                        disabled={isAssisting}
+                                                        className="text-[9px] bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold uppercase">👔
+                                                    Formal
+                                                </button>
                                             </div>
                                         )}
                                     </div>
-                                    <VoiceInput onTranscript={handleVoiceToBlog} isProcessing={isVoiceProcessing} />
+                                    <VoiceInput onTranscript={handleVoiceToBlog} isProcessing={isVoiceProcessing}/>
                                 </div>
                                 <div className="flex gap-2">
-                                    <input className="flex-1 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
-                                           placeholder="Post Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+                                    <input
+                                        className="flex-1 p-3 border rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                                        placeholder="Post Title" value={title}
+                                        onChange={(e) => setTitle(e.target.value)}/>
                                     {title.length > 2 && (
-                                        <button onClick={handleAIGenerate} disabled={isGenerating} className="bg-purple-600 text-white px-6 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">
+                                        <button onClick={handleAIGenerate} disabled={isGenerating}
+                                                className="bg-purple-600 text-white px-6 rounded-xl font-bold hover:bg-purple-700 disabled:opacity-50">
                                             {isGenerating ? "Thinking..." : "✨ AI Generate"}
                                         </button>
                                     )}
                                 </div>
                                 <div className="relative">
-                                    <textarea className={`w-full p-3 border rounded-xl outline-none h-32 focus:ring-2 focus:ring-emerald-500 transition-all ${isAssisting ? 'opacity-40 pointer-events-none' : ''}`}
-                                              placeholder={isVoiceProcessing ? "AI is translating your voice..." : "What's on your mind?"}
-                                              value={description} onChange={(e) => setDescription(e.target.value)} />
+                                    <textarea
+                                        className={`w-full p-3 border rounded-xl outline-none h-32 focus:ring-2 focus:ring-emerald-500 transition-all ${isAssisting ? 'opacity-40 pointer-events-none' : ''}`}
+                                        placeholder={isVoiceProcessing ? "AI is translating your voice..." : "What's on your mind?"}
+                                        value={description} onChange={(e) => setDescription(e.target.value)}/>
                                     {isAssisting && (
-                                        <div className="absolute inset-0 flex items-center justify-center font-bold text-purple-700 text-sm">
-                                            <i className="fas fa-magic animate-bounce mr-2"></i> AI Assistant is working...
+                                        <div
+                                            className="absolute inset-0 flex items-center justify-center font-bold text-purple-700 text-sm">
+                                            <i className="fas fa-magic animate-bounce mr-2"></i> AI Assistant is
+                                            working...
                                         </div>
                                     )}
 
                                     {/* Insert this after the Textarea */}
                                     <div className="flex flex-wrap gap-2 mb-3">
                                         {tags.map((tag, index) => (
-                                            <span key={index} className="bg-slate-200 text-slate-700 px-2 py-1 rounded-md text-[10px] font-bold">
+                                            <span key={index}
+                                                  className="bg-slate-200 text-slate-700 px-2 py-1 rounded-md text-[10px] font-bold">
                                         #{tag}
                                     </span>
-                                                                    ))}
-                                                                </div>
+                                        ))}
+                                    </div>
 
                                     <button
                                         onClick={generateSEOTags}
@@ -359,35 +412,108 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                     </button>
                                 </div>
                                 <div className="flex items-center justify-between">
-                                    <input type="file" ref={fileInputRef} className="text-sm text-gray-500" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />
-                                    <button onClick={addBlog} disabled={isPosting} className="bg-emerald-700 text-white px-10 py-2 rounded-xl font-bold hover:bg-emerald-800 disabled:bg-gray-300">
+                                    <input type="file" ref={fileInputRef} className="text-sm text-gray-500"
+                                           accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)}/>
+                                    <button onClick={addBlog} disabled={isPosting}
+                                            className="bg-emerald-700 text-white px-10 py-2 rounded-xl font-bold hover:bg-emerald-800 disabled:bg-gray-300">
                                         {isPosting ? "Posting..." : "Post"}
                                     </button>
                                 </div>
                             </div>
 
                             <div className="grid gap-6">
-                                {loading ? <p className="text-center py-10 text-gray-400 font-bold">Refreshing feed...</p> : (
-                                    blogs.map((b) => (
-                                        <article key={b._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                                            {b.imageUrl && <img src={`${BASE_URL}${b.imageUrl}`} alt="post" className="w-full h-64 object-cover" />}
-                                            <div className="p-6">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h3 className="text-xl font-bold text-gray-800">{b.title}</h3>
-                                                    <span className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">By {b.email.split('@')[0]}</span>
+                                {loading ?
+                                    <p className="text-center py-10 text-gray-400 font-bold">Refreshing feed...</p> : (
+                                        blogs.map((b: any) => (
+                                            <article key={b._id}
+                                                     className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition flex flex-col">
+                                                {b.imageUrl && <img src={`${BASE_URL}${b.imageUrl}`} alt="post"
+                                                                    className="w-full h-64 object-cover"/>}
+
+                                                <div className="p-6 flex-1">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <h3 className="text-xl font-bold text-gray-800">{b.title}</h3>
+                                                        <span
+                                                            className="text-[10px] uppercase font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">By {b.email.split('@')[0]}</span>
+                                                    </div>
+
+                                                    <p className="blog-text text-gray-600 text-sm leading-relaxed p-2 rounded transition-colors duration-500 mb-4">
+                                                        {b.description}
+                                                    </p>
+
+                                                    {/* SEO Tags Display */}
+                                                    {b.tags && b.tags.length > 0 && (
+                                                        <div className="flex flex-wrap gap-1 mb-4">
+                                                            {b.tags.map((tag: string, i: number) => (
+                                                                <span key={i}
+                                                                      className="text-[9px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded italic">#{tag}</span>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <p className="blog-text text-gray-600 text-sm leading-relaxed p-2 rounded transition-colors duration-500">
-                                                    {b.description}
-                                                </p>
-                                            </div>
-                                        </article>
-                                    ))
-                                )}
+
+                                                {/* Comment Section */}
+                                                <div className="bg-gray-50/50 p-6 border-t border-gray-100">
+                                                    <div className="flex items-center gap-2 mb-4">
+                                                        <i className="far fa-comments text-gray-400"></i>
+                                                        <h4 className="text-xs font-bold text-gray-700 uppercase tracking-tighter">
+                                                            Discussion ({b.comments?.length || 0})
+                                                        </h4>
+                                                    </div>
+
+                                                    {/* Scrollable Comment List */}
+                                                    <div
+                                                        className="space-y-3 max-h-40 overflow-y-auto mb-4 scrollbar-thin scrollbar-thumb-gray-200">
+                                                        {b.comments && b.comments.length > 0 ? (
+                                                            b.comments.map((c: any, i: number) => (
+                                                                <div key={i}
+                                                                     className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm">
+                                                                    <div
+                                                                        className="flex justify-between items-center mb-1">
+                                                                        <span
+                                                                            className="text-[10px] font-black text-emerald-700">{c.email.split('@')[0]}</span>
+                                                                        <span
+                                                                            className="text-[8px] text-gray-400">{new Date(c.createdAt).toLocaleDateString()}</span>
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-600">{c.text}</p>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <p className="text-[10px] text-gray-400 italic">No comments
+                                                                yet. Be the first to reply!</p>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Comment Input Box */}
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Add a comment..."
+                                                            className="flex-1 text-xs p-3 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 bg-white transition-all"
+                                                            value={commentInputs[b._id] || ""}
+                                                            onChange={(e) => setCommentInputs({
+                                                                ...commentInputs,
+                                                                [b._id]: e.target.value
+                                                            })}
+                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment(b._id)}
+                                                        />
+                                                        <button
+                                                            onClick={() => handleAddComment(b._id)}
+                                                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-700 transition shadow-sm active:scale-95"
+                                                        >
+                                                            Reply
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </article>
+                                        ))
+                                    )}
                             </div>
                         </div>
                     ) : (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 h-[calc(100vh-140px)] overflow-hidden">
-                            <Chat token={token} userEmail={userEmail} socket={socket} />
+                        <div
+                            className="bg-white rounded-xl shadow-sm border border-gray-200 h-[calc(100vh-140px)] overflow-hidden">
+                            <Chat token={token} userEmail={userEmail} socket={socket}/>
                         </div>
                     )}
                 </main>
