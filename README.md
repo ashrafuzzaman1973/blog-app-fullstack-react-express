@@ -180,9 +180,10 @@ npm run dev
 ### 📝 Blogs
 
 | Method | Endpoint     | Description                 |
-| ------ | ------------ | --------------------------- |
-| GET    | `/api/blogs` | Fetch all blogs             |
-| POST   | `/api/blogs` | Create blog (Auth required) |
+|-------| ------------ | --------------------------- |
+| GET   | `/api/blogs` | Fetch all blogs             |
+| POST  | `/api/blogs` | Create blog (Auth required) |
+| POST	 |/api/blogs/:id/comment	|Add comment (Real-time update)
 
 ### 🤖 AI Services
 | Method | Endpoint                     | Description                              |
