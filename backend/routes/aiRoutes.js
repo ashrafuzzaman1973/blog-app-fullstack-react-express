@@ -152,4 +152,41 @@ router.post('/refine_content', async (req, res) => {
     }
 });
 
+router.post("/generate_tags", async (req, res) => {
+    try {
+        const { title, description } = req.body;
+
+        const data = JSON.stringify({
+            "contents": [{
+                "parts": [{
+                    "text": `Analyze the following blog title and description. Generate 8 highly relevant SEO tags/keywords. Return ONLY the keywords separated by commas.
+                    Title: ${title}
+                    Description: ${description}`
+                }]
+            }]
+        });
+
+        const config = {
+            method: 'post',
+            url: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': process.env.GEMINI_API_KEY
+            },
+            data: data
+        };
+
+        const response = await axios.request(config);
+        const rawTags = response.data.candidates[0].content.parts[0].text;
+
+        // Convert "tag1, tag2, tag3" into ["tag1", "tag2", "tag3"]
+        const tagsArray = rawTags.split(',').map(tag => tag.trim());
+
+        res.json({ tags: tagsArray });
+
+    } catch (error) {
+        res.status(500).json({ error: "Failed to generate tags" });
+    }
+});
+
 module.exports = router;

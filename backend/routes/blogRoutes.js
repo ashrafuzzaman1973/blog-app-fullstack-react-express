@@ -46,22 +46,33 @@ router.get('/', async (req, res) => {
 
 // 2. POST A BLOG
 router.post('/', authMiddleware, upload.single('image'), async (req, res) => {
-    const { title, description } = req.body;
+    const { title, description, tags } = req.body; // 1. Destructure tags from body
 
     try {
+        // 2. Parse tags back into an array
+        // Since FormData sends arrays as JSON strings, we parse them back.
+        let parsedTags = [];
+        if (tags) {
+            try {
+                parsedTags = JSON.parse(tags);
+            } catch (e) {
+                // Fallback if tags was sent as a comma-separated string instead of JSON
+                parsedTags = tags.split(',').map(tag => tag.trim());
+            }
+        }
+
         const newBlog = new Blog({
             title,
             description,
             email: req.user.email,
-            imageUrl: req.file ? `/uploads/${req.file.filename}` : null // No BASE_URL here
-            // imageUrl: req.file
-            //     ? `${process.env.BASE_URL}/uploads/${req.file.filename}`
-            //     : null
+            imageUrl: req.file ? `/uploads/${req.file.filename}` : null,
+            tags: parsedTags // 3. Save the array to MongoDB
         });
 
         const savedBlog = await newBlog.save();
         res.status(201).json(savedBlog);
     } catch (err) {
+        console.error("Error saving blog:", err);
         res.status(500).json({ message: "Error saving to MongoDB" });
     }
 });

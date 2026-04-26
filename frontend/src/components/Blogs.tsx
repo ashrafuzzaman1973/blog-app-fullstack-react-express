@@ -38,6 +38,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [image, setImage] = useState<File | null>(null);
+    const [tags, setTags]    = useState<string[]>([]);
 
     // Loading States
     const [loading, setLoading] = useState(false);
@@ -184,12 +185,26 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
         }
     };
 
+    const generateSEOTags = async () => {
+        if (!description.trim()) return;
+        try {
+            const res = await axios.post(`${AI_API}/generate_tags`,
+                { title, description },
+                { headers: { "Authorization": `Bearer ${token}` } }
+            );
+            setTags(res.data.tags);
+        } catch (error) {
+            console.error("Tag Generation Error:", error);
+        }
+    };
+
     const addBlog = async () => {
         if (!title.trim() || !description.trim()) return alert("Fill in fields");
         setIsPosting(true);
         const formData = new FormData();
         formData.append("title", title);
         formData.append("description", description);
+        formData.append("tags", JSON.stringify(tags)); // Add this line
         if (image) formData.append("image", image);
 
         try {
@@ -197,6 +212,7 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                 headers: { "Authorization": `Bearer ${token}`, "Content-Type": "multipart/form-data" }
             });
             setTitle(""); setDescription(""); setImage(null);
+            setTags([]); // Clear tags after posting
             if (fileInputRef.current) fileInputRef.current.value = "";
             fetchBlogs();
         } catch (e) { onLogout(); }
@@ -324,6 +340,23 @@ export default function Blogs({ token, userEmail, onLogout, onLogin }: BlogsProp
                                             <i className="fas fa-magic animate-bounce mr-2"></i> AI Assistant is working...
                                         </div>
                                     )}
+
+                                    {/* Insert this after the Textarea */}
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                        {tags.map((tag, index) => (
+                                            <span key={index} className="bg-slate-200 text-slate-700 px-2 py-1 rounded-md text-[10px] font-bold">
+                                        #{tag}
+                                    </span>
+                                                                    ))}
+                                                                </div>
+
+                                    <button
+                                        onClick={generateSEOTags}
+                                        disabled={!description}
+                                        className="text-xs text-emerald-600 font-bold hover:underline mb-4 block"
+                                    >
+                                        <i className="fas fa-tags mr-1"></i> Auto-Generate SEO Tags
+                                    </button>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <input type="file" ref={fileInputRef} className="text-sm text-gray-500" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] || null)} />

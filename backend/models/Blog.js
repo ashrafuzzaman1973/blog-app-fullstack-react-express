@@ -5,6 +5,7 @@ const blogSchema = new mongoose.Schema({
     description: { type: String, required: true },
     email: { type: String, required: true },
     imageUrl: { type: String },
+    tags: [String], // Array of strings for SEO
     createdAt: { type: Date, default: Date.now }
 });
 
